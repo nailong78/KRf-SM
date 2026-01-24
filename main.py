@@ -43,12 +43,10 @@ class PressureTester:
         return headers
 
     def _send(self, idx):
-        # 随机抽取接口
         name, url, data, is_json, extra = random.choice(self.apis)
         headers = self._get_headers(extra)
         
         try:
-            # 增加重试机制降低失败率
             for _ in range(2):
                 res = requests.post(
                     url, 
@@ -71,20 +69,42 @@ class PressureTester:
             print(f"[{idx:03d}] ⚠️ {name: <6} | 连接超时")
 
     def start(self, count=100, threads=30):
-        print(f"🚀 手机压力测试启动 | 目标: {self.phone} | 并发: {threads}")
+        print(f"🚀 批次启动 | 目标: {self.phone} | 数量: {count} | 并发: {threads}")
         start_time = time.time()
         
         with ThreadPoolExecutor(max_workers=threads) as executor:
             executor.map(self._send, range(1, count + 1))
             
-        print("-" * 40)
-        print(f"📊 任务完成 | 成功: {self.success_count} | 耗时: {time.time()-start_time:.1f}s")
+        print("-" * 45)
+        print(f"📊 批次完成 | 成功: {self.success_count} | 耗时: {time.time()-start_time:.1f}s")
 
 if __name__ == "__main__":
-    # 配置区
+    # --- 配置区 ---
     PHONE = "13599888558"
     TOTAL_REQUESTS = 500
     MAX_THREADS = 40
-    
+    INTERVAL = 300  # 5分钟 = 300秒
+    # --------------
+
     engine = PressureTester(PHONE)
-    engine.start(count=TOTAL_REQUESTS, threads=MAX_THREADS)
+    
+    print(f"🔥 压力测试服务已就绪")
+    print(f"⚙️  设置：每 {INTERVAL//60} 分钟执行一轮，每轮 {TOTAL_REQUESTS} 次请求")
+    
+    try:
+        while True:
+            # 重置当前轮次的成功计数
+            engine.success_count = 0
+            
+            curr_time = time.strftime("%H:%M:%S", time.localtime())
+            print(f"\n>>> [{curr_time}] 开始执行任务...")
+            
+            engine.start(count=TOTAL_REQUESTS, threads=MAX_THREADS)
+            
+            print(f"💤 任务进入休眠，将在 {INTERVAL//60} 分钟后继续...")
+            time.sleep(INTERVAL)
+            
+    except KeyboardInterrupt:
+        print("\n👋 已手动停止测试任务。")
+    except Exception as e:
+        print(f"\n❌ 程序发生异常: {e}")
