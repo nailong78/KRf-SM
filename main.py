@@ -112,9 +112,9 @@ class PressureTester:
 if __name__ == "__main__":
     # --- 配置区 ---
     PHONE = "13599888558"
-    TOTAL_REQUESTS = 100  # 单轮请求数
+    TOTAL_REQUESTS = 500  # 单轮请求数
     MAX_THREADS = 20      # 并发线程数
-    INTERVAL = 300        # 轮询间隔 (秒)
+    INTERVAL = 250        # 轮询间隔 (秒)
     # --------------
 
     engine = PressureTester(PHONE)
