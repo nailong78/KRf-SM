@@ -1,28 +1,33 @@
-name: Scheduled Python Task
+name: Auto Run Project
 
 on:
   schedule:
-    # 这里的 cron 表达式代表每 5 分钟运行一次
-    - cron: '*/5 * * * *'
-  workflow_dispatch: # 允许手动点击按钮运行
+    - cron: '*/5 * * * *' # 每5分钟运行一次
+  workflow_dispatch:      # 支持手动触发
 
 jobs:
-  build:
+  build_and_report:
     runs-on: ubuntu-latest
-
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: 设置 Python 环境
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      # --- 这里放置你原有的执行逻辑 (例如 python run.py 等) ---
+      - name: Run Task
+        run: |
+          echo "Executing your main logic here..."
+          # 模拟任务逻辑
+          sleep 5 
 
-    - name: 安装依赖
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: 执行脚本
-      run: python main.py
+      # --- 新增：自动上报日志到宝塔 ---
+      - name: Report Status to BT Panel
+        if: always() # 确保无论成功或失败都会发送日志
+        run: |
+          curl -X POST https://你的域名/api.php \
+          -H "X-API-KEY: ${{ secrets.LOG_API_KEY }}" \
+          -d "run_id=${{ github.run_id }}" \
+          -d "workflow_name=${{ github.workflow }}" \
+          -d "status=${{ job.status }}" \
+          -d "branch=${{ github.ref_name }}" \
+          -d "commit_msg=${{ github.event.head_commit.message }}" \
+          -d "log_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
